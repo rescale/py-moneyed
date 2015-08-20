@@ -58,6 +58,10 @@ class TestCurrency:
         assert self.default_curr != other
         assert self.default_curr != CURRENCIES['USD']
 
+        #compare to string code
+        assert self.default_curr == 'XYZ'
+        assert self.default_curr != 'USD'
+
     def test_fetching_currency_by_iso_code(self):
         assert get_currency('USD') == USD
         assert get_currency(iso='840') == USD

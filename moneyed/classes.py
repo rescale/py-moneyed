@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import unicode_literals
 
 from decimal import Decimal, ROUND_DOWN
+import six
 import warnings
 
 # Default, non-existent, currency
@@ -27,7 +28,10 @@ class Currency(object):
         self.numeric = numeric
 
     def __eq__(self, other):
-        return type(self) is type(other) and self.code == other.code
+        if isinstance(other, six.string_types):
+            return self.code == other
+        else:
+            return type(self) is type(other) and self.code == other.code
 
     def __ne__(self, other):
         return not self.__eq__(other)
