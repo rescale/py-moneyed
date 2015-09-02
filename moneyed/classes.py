@@ -39,6 +39,9 @@ class Currency(object):
     def __repr__(self):
         return self.code
 
+    def __hash__(self):
+        return hash(self.code)
+
 
 class MoneyComparisonError(TypeError):
     # This exception was needed often enough to merit its own

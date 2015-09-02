@@ -62,6 +62,13 @@ class TestCurrency:
         assert self.default_curr == 'XYZ'
         assert self.default_curr != 'USD'
 
+    def test_use_currency_in_dict(self):
+        data = {
+            'USD': 123
+        }
+        assert CURRENCIES['USD'] in data
+        assert data[CURRENCIES['USD']] == 123
+
     def test_fetching_currency_by_iso_code(self):
         assert get_currency('USD') == USD
         assert get_currency(iso='840') == USD
