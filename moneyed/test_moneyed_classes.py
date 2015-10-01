@@ -198,6 +198,13 @@ class TestMoney:
             assert (self.one_million_bucks % self.one_million_bucks
                     == 1)
 
+    def test_hash(self):
+        instance1 = Money(amount=10, currency=self.USD)
+        instance2 = Money(amount=10, currency=self.USD)
+        assert hash(instance1) == hash(instance2)
+        assert hash(instance1) != hash(Money(11, currency=self.USD))
+        assert hash(instance1) != hash(Money(10, currency=CURRENCIES['CAD']))
+
     def test_rmod_float_warning(self):
         # This should be changed to TypeError exception after deprecation period is over.
         with warnings.catch_warnings(record=True) as warning_list:
