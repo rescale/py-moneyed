@@ -184,6 +184,9 @@ class Money(object):
         result = self.__eq__(other)
         return not result
 
+    def __hash__(self):
+        return hash((self.amount, self.currency))
+
     def __lt__(self, other):
         if not isinstance(other, Money):
             raise MoneyComparisonError(other)
