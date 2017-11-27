@@ -1,13 +1,23 @@
 # -*- coding: utf-8 -*-
+
 from __future__ import division
 from __future__ import unicode_literals
 
-from decimal import Decimal, ROUND_DOWN
-import six
+from decimal import Decimal
+import sys
 import warnings
 
 # Default, non-existent, currency
 DEFAULT_CURRENCY_CODE = 'XYZ'
+
+PYTHON2 = sys.version_info[0] == 2
+
+
+def force_decimal(amount):
+    """Given an amount of unknown type, type cast it to be a Decimal."""
+    if not isinstance(amount, Decimal):
+        return Decimal(str(amount))
+    return amount
 
 
 class Currency(object):
@@ -15,8 +25,7 @@ class Currency(object):
     A Currency represents a form of money issued by governments, and
     used in one or more states/countries.  A Currency instance
     encapsulates the related data of: the ISO currency/numeric code, a
-    canonical name, countries the currency is used in, and an exchange
-    rate - the last remains unimplemented however.
+    canonical name, and countries the currency is used in.
     """
 
     def __init__(self, code='', numeric='999', name='', countries=None):
@@ -27,8 +36,11 @@ class Currency(object):
         self.name = name
         self.numeric = numeric
 
+    def __hash__(self):
+        return hash(self.code)
+
     def __eq__(self, other):
-        if isinstance(other, six.string_types):
+        if isinstance(other, basestring):
             return self.code == other
         else:
             return type(self) is type(other) and self.code == other.code
@@ -82,8 +94,7 @@ class Money(object):
         self.currency = currency
 
     def __repr__(self):
-        return "%s %s" % (self.amount.to_integral_value(ROUND_DOWN),
-                          self.currency)
+        return "<Money: %s %s>" % (self.amount, self.currency)
 
     def __unicode__(self):
         from moneyed.localization import format_money
@@ -91,7 +102,13 @@ class Money(object):
 
     def __str__(self):
         from moneyed.localization import format_money
-        return format_money(self)
+        if PYTHON2:
+            return format_money(self)
+        else:
+            return format_money(self)
+
+    def __hash__(self):
+        return hash((self.amount, self.currency))
 
     def __pos__(self):
         return self.__class__(
@@ -100,7 +117,7 @@ class Money(object):
 
     def __neg__(self):
         return self.__class__(
-            amount= -self.amount,
+            amount=-self.amount,
             currency=self.currency)
 
     def __add__(self, other):
@@ -129,7 +146,7 @@ class Money(object):
             if isinstance(other, float):
                 warnings.warn("Multiplying Money instances with floats is deprecated", DeprecationWarning)
             return self.__class__(
-                amount=(self.amount * Decimal(str(other))),
+                amount=(self.amount * force_decimal(other)),
                 currency=self.currency)
 
     def __truediv__(self, other):
@@ -141,13 +158,19 @@ class Money(object):
             if isinstance(other, float):
                 warnings.warn("Dividing Money instances by floats is deprecated", DeprecationWarning)
             return self.__class__(
-                amount=self.amount / Decimal(str(other)),
+                amount=(self.amount / force_decimal(other)),
                 currency=self.currency)
 
     def __abs__(self):
         return self.__class__(
             amount=abs(self.amount),
             currency=self.currency)
+
+    def __bool__(self):
+        return bool(self.amount)
+
+    if PYTHON2:
+        __nonzero__ = __bool__
 
     def __rmod__(self, other):
         """
@@ -163,7 +186,8 @@ class Money(object):
             raise TypeError('Invalid __rmod__ operation')
         else:
             if isinstance(other, float):
-                warnings.warn("Calculating percentages of Money instances using floats is deprecated", DeprecationWarning)
+                warnings.warn("Calculating percentages of Money instances using floats is deprecated",
+                              DeprecationWarning)
             return self.__class__(
                 amount=(Decimal(str(other)) * self.amount / 100),
                 currency=self.currency)
@@ -176,9 +200,9 @@ class Money(object):
     # _______________________________________
     # Override comparison operators
     def __eq__(self, other):
-        return isinstance(other, Money)\
-               and (self.amount == other.amount) \
-               and (self.currency == other.currency)
+        return (isinstance(other, Money) and
+                (self.amount == other.amount) and
+                (self.currency == other.currency))
 
     def __ne__(self, other):
         result = self.__eq__(other)
@@ -212,7 +236,7 @@ class Money(object):
 
 # ____________________________________________________________________
 # Definitions of ISO 4217 Currencies
-# Source: http://www.iso.org/iso/support/faqs/faqs_widely_used_standards/widely_used_standards_other/currency_codes/currency_codes_list-1.htm
+# Source: http://www.iso.org/iso/support/faqs/faqs_widely_used_standards/widely_used_standards_other/currency_codes/currency_codes_list-1.htm  # noqa
 
 CURRENCIES = {}
 CURRENCIES_BY_ISO = {}
@@ -237,6 +261,7 @@ def get_currency(code=None, iso=None):
     except KeyError:
         raise CurrencyDoesNotExist(code)
 
+
 DEFAULT_CURRENCY = add_currency(DEFAULT_CURRENCY_CODE, '999', 'Default currency.', [])
 
 
@@ -247,7 +272,11 @@ AMD = add_currency('AMD', '051', 'Armenian Dram', ['ARMENIA'])
 ANG = add_currency('ANG', '532', 'Netherlands Antillian Guilder', ['NETHERLANDS ANTILLES'])
 AOA = add_currency('AOA', '973', 'Kwanza', ['ANGOLA'])
 ARS = add_currency('ARS', '032', 'Argentine Peso', ['ARGENTINA'])
-AUD = add_currency('AUD', '036', 'Australian Dollar', ['AUSTRALIA', 'CHRISTMAS ISLAND', 'COCOS (KEELING) ISLANDS', 'HEARD ISLAND AND MCDONALD ISLANDS', 'KIRIBATI', 'NAURU', 'NORFOLK ISLAND', 'TUVALU'])
+AUD = add_currency('AUD', '036', 'Australian Dollar', ['AUSTRALIA', 'CHRISTMAS ISLAND',
+                                                       'COCOS (KEELING) ISLANDS',
+                                                       'HEARD ISLAND AND MCDONALD ISLANDS',
+                                                       'KIRIBATI', 'NAURU', 'NORFOLK ISLAND',
+                                                       'TUVALU'])
 AWG = add_currency('AWG', '533', 'Aruban Guilder', ['ARUBA'])
 AZN = add_currency('AZN', '944', 'Azerbaijanian Manat', ['AZERBAIJAN'])
 BAM = add_currency('BAM', '977', 'Convertible Marks', ['BOSNIA AND HERZEGOVINA'])
@@ -258,18 +287,25 @@ BHD = add_currency('BHD', '048', 'Bahraini Dinar', ['BAHRAIN'])
 BIF = add_currency('BIF', '108', 'Burundi Franc', ['BURUNDI'])
 BMD = add_currency('BMD', '060', 'Bermudian Dollar (customarily known as Bermuda Dollar)', ['BERMUDA'])
 BND = add_currency('BND', '096', 'Brunei Dollar', ['BRUNEI DARUSSALAM'])
+BOB = add_currency('BOB', '068', 'Boliviano', ['BOLIVIA (PLURINATIONAL STATE OF)'])
+BOV = add_currency('BOV', '984', 'Mvdol', ['BOLIVIA (PLURINATIONAL STATE OF)'])
 BRL = add_currency('BRL', '986', 'Brazilian Real', ['BRAZIL'])
 BSD = add_currency('BSD', '044', 'Bahamian Dollar', ['BAHAMAS'])
 BTN = add_currency('BTN', '064', 'Bhutanese ngultrum', ['BHUTAN'])
 BWP = add_currency('BWP', '072', 'Pula', ['BOTSWANA'])
+BYN = add_currency('BYN', '933', 'Belarussian Ruble', ['BELARUS'])
 BYR = add_currency('BYR', '974', 'Belarussian Ruble', ['BELARUS'])
 BZD = add_currency('BZD', '084', 'Belize Dollar', ['BELIZE'])
 CAD = add_currency('CAD', '124', 'Canadian Dollar', ['CANADA'])
 CDF = add_currency('CDF', '976', 'Congolese franc', ['DEMOCRATIC REPUBLIC OF CONGO'])
+CHE = add_currency('CHE', '947', 'WIR Euro', ['SWITZERLAND'])
 CHF = add_currency('CHF', '756', 'Swiss Franc', ['LIECHTENSTEIN'])
+CHW = add_currency('CHW', '948', 'WIR Franc', ['SWITZERLAND'])
+CLF = add_currency('CLF', '990', 'Unidad de Fomento', ['CHILE'])
 CLP = add_currency('CLP', '152', 'Chilean peso', ['CHILE'])
 CNY = add_currency('CNY', '156', 'Yuan Renminbi', ['CHINA'])
 COP = add_currency('COP', '170', 'Colombian peso', ['COLOMBIA'])
+COU = add_currency('COU', '970', 'Unidad de Valor Real', ['COLOMBIA'])
 CRC = add_currency('CRC', '188', 'Costa Rican Colon', ['COSTA RICA'])
 CUC = add_currency('CUC', '931', 'Cuban convertible peso', ['CUBA'])
 CUP = add_currency('CUP', '192', 'Cuban Peso', ['CUBA'])
@@ -282,7 +318,13 @@ DZD = add_currency('DZD', '012', 'Algerian Dinar', ['ALGERIA'])
 EGP = add_currency('EGP', '818', 'Egyptian Pound', ['EGYPT'])
 ERN = add_currency('ERN', '232', 'Nakfa', ['ERITREA'])
 ETB = add_currency('ETB', '230', 'Ethiopian Birr', ['ETHIOPIA'])
-EUR = add_currency('EUR', '978', 'Euro', ['ANDORRA', 'AUSTRIA', 'BELGIUM', 'ESTONIA', 'FINLAND', 'FRANCE', 'FRENCH GUIANA', 'FRENCH SOUTHERN TERRITORIES', 'GERMANY', 'GREECE', 'GUADELOUPE', 'IRELAND', 'ITALY', 'LUXEMBOURG', 'MARTINIQUE', 'MAYOTTE', 'MONACO', 'MONTENEGRO', 'NETHERLANDS', 'PORTUGAL', 'R.UNION', 'SAINT PIERRE AND MIQUELON', 'SAN MARINO', 'SLOVAKIA', 'SLOVENIA', 'SPAIN'])
+EUR = add_currency('EUR', '978', 'Euro', ['AKROTIRI AND DHEKELIA', 'ANDORRA', 'AUSTRIA', 'BELGIUM',
+                                          'CYPRUS', 'ESTONIA', 'FINLAND', 'FRANCE', 'GERMANY', 'GREECE',
+                                          'GUADELOUPE', 'IRELAND', 'ITALY', 'KOSOVO', 'LATVIA', 'LITHUANIA',
+                                          'LUXEMBOURG', 'MALTA', 'MARTINIQUE', 'MAYOTTE', 'MONACO',
+                                          'MONTENEGRO', 'NETHERLANDS', 'PORTUGAL', 'RÉUNION', 'SAN MARINO',
+                                          'SAINT BARTHÉLEMY', 'SAINT PIERRE AND MIQUELON', 'SAN MARINO',
+                                          'SLOVAKIA', 'SLOVENIA', 'SPAIN', 'VATICAN CITY'])
 FJD = add_currency('FJD', '242', 'Fiji Dollar', ['FIJI'])
 FKP = add_currency('FKP', '238', 'Falkland Islands Pound', ['FALKLAND ISLANDS (MALVINAS)'])
 GBP = add_currency('GBP', '826', 'Pound Sterling', ['UNITED KINGDOM'])
@@ -300,7 +342,7 @@ HTG = add_currency('HTG', '332', 'Haitian gourde', ['HAITI'])
 HUF = add_currency('HUF', '348', 'Forint', ['HUNGARY'])
 IDR = add_currency('IDR', '360', 'Rupiah', ['INDONESIA'])
 ILS = add_currency('ILS', '376', 'New Israeli Sheqel', ['ISRAEL'])
-IMP = add_currency('IMP', 'Nil', 'Isle of Man pount', ['ISLE OF MAN'])
+IMP = add_currency('IMP', 'Nil', 'Isle of Man Pound', ['ISLE OF MAN'])
 INR = add_currency('INR', '356', 'Indian Rupee', ['INDIA'])
 IQD = add_currency('IQD', '368', 'Iraqi Dinar', ['IRAQ'])
 IRR = add_currency('IRR', '364', 'Iranian Rial', ['IRAN'])
@@ -337,6 +379,7 @@ MUR = add_currency('MUR', '480', 'Mauritius Rupee', ['MAURITIUS'])
 MVR = add_currency('MVR', '462', 'Rufiyaa', ['MALDIVES'])
 MWK = add_currency('MWK', '454', 'Malawian Kwacha', ['MALAWI'])
 MXN = add_currency('MXN', '484', 'Mexican peso', ['MEXICO'])
+MXV = add_currency('MXV', '979', 'Mexican Unidad de Inversion (UDI)', ['MEXICO'])
 MYR = add_currency('MYR', '458', 'Malaysian Ringgit', ['MALAYSIA'])
 MZN = add_currency('MZN', '943', 'Metical', ['MOZAMBIQUE'])
 NAD = add_currency('NAD', '516', 'Namibian Dollar', ['NAMIBIA'])
@@ -344,8 +387,9 @@ NGN = add_currency('NGN', '566', 'Naira', ['NIGERIA'])
 NIO = add_currency('NIO', '558', 'Cordoba Oro', ['NICARAGUA'])
 NOK = add_currency('NOK', '578', 'Norwegian Krone', ['BOUVET ISLAND', 'NORWAY', 'SVALBARD AND JAN MAYEN'])
 NPR = add_currency('NPR', '524', 'Nepalese Rupee', ['NEPAL'])
-NZD = add_currency('NZD', '554', 'New Zealand Dollar', ['COOK ISLANDS', ', prefix=None, suffix=NoneNEW ZEALAND', 'NIUE', 'PITCAIRN', 'TOKELAU'])
+NZD = add_currency('NZD', '554', 'New Zealand Dollar', ['COOK ISLANDS', 'NEW ZEALAND', 'NIUE', 'PITCAIRN', 'TOKELAU'])
 OMR = add_currency('OMR', '512', 'Rial Omani', ['OMAN'])
+PAB = add_currency('PAB', '590', 'Balboa', ['PANAMA'])
 PEN = add_currency('PEN', '604', 'Nuevo Sol', ['PERU'])
 PGK = add_currency('PGK', '598', 'Kina', ['PAPUA NEW GUINEA'])
 PHP = add_currency('PHP', '608', 'Philippine Peso', ['PHILIPPINES'])
@@ -367,12 +411,15 @@ SHP = add_currency('SHP', '654', 'Saint Helena Pound', ['SAINT HELENA'])
 SLL = add_currency('SLL', '694', 'Leone', ['SIERRA LEONE'])
 SOS = add_currency('SOS', '706', 'Somali Shilling', ['SOMALIA'])
 SRD = add_currency('SRD', '968', 'Surinam Dollar', ['SURINAME'])
+SSP = add_currency('SSP', '728', 'South Sudanese Pound', ['SOUTH SUDAN'])
 STD = add_currency('STD', '678', 'Dobra', ['SAO TOME AND PRINCIPE'])
+SVC = add_currency('SVC', '222', 'El Salvador Colon', ['EL SALVADOR'])
 SYP = add_currency('SYP', '760', 'Syrian Pound', ['SYRIAN ARAB REPUBLIC'])
 SZL = add_currency('SZL', '748', 'Lilangeni', ['SWAZILAND'])
 THB = add_currency('THB', '764', 'Baht', ['THAILAND'])
 TJS = add_currency('TJS', '972', 'Somoni', ['TAJIKISTAN'])
 TMM = add_currency('TMM', '795', 'Manat', ['TURKMENISTAN'])
+TMT = add_currency('TMT', '934', 'Turkmenistan New Manat', ['TURKMENISTAN'])
 TND = add_currency('TND', '788', 'Tunisian Dinar', ['TUNISIA'])
 TOP = add_currency('TOP', '776', 'Paanga', ['TONGA'])
 TRY = add_currency('TRY', '949', 'Turkish Lira', ['TURKEY'])
@@ -382,32 +429,53 @@ TWD = add_currency('TWD', '901', 'New Taiwan Dollar', ['TAIWAN'])
 TZS = add_currency('TZS', '834', 'Tanzanian Shilling', ['TANZANIA'])
 UAH = add_currency('UAH', '980', 'Hryvnia', ['UKRAINE'])
 UGX = add_currency('UGX', '800', 'Uganda Shilling', ['UGANDA'])
-USD = add_currency('USD', '840', 'US Dollar', ['AMERICAN SAMOA', 'BRITISH INDIAN OCEAN TERRITORY', 'ECUADOR', 'GUAM', 'MARSHALL ISLANDS', 'MICRONESIA', 'NORTHERN MARIANA ISLANDS', 'PALAU', 'PUERTO RICO', 'TIMOR-LESTE', 'TURKS AND CAICOS ISLANDS', 'UNITED STATES', 'UNITED STATES MINOR OUTLYING ISLANDS', 'VIRGIN ISLANDS (BRITISH)', 'VIRGIN ISLANDS (U.S.)'])
+USD = add_currency('USD', '840', 'US Dollar', ['AMERICAN SAMOA', 'BRITISH INDIAN OCEAN TERRITORY',
+                                               'ECUADOR', 'GUAM', 'MARSHALL ISLANDS', 'MICRONESIA',
+                                               'NORTHERN MARIANA ISLANDS', 'PALAU', 'PUERTO RICO',
+                                               'TIMOR-LESTE', 'TURKS AND CAICOS ISLANDS', 'UNITED STATES',
+                                               'UNITED STATES MINOR OUTLYING ISLANDS',
+                                               'VIRGIN ISLANDS (BRITISH)', 'VIRGIN ISLANDS (U.S.)'])
+USN = add_currency('USN', '997', 'US Dollar (Next day)', ['UNITED STATES OF AMERICA (THE)'])
+UYI = add_currency('UYI', '940', 'Uruguay Peso en Unidades Indexadas (URUIURUI)', ['URUGUAY'])
 UYU = add_currency('UYU', '858', 'Uruguayan peso', ['URUGUAY'])
 UZS = add_currency('UZS', '860', 'Uzbekistan Sum', ['UZBEKISTAN'])
 VEF = add_currency('VEF', '937', 'Bolivar Fuerte', ['VENEZUELA'])
 VND = add_currency('VND', '704', 'Dong', ['VIET NAM'])
 VUV = add_currency('VUV', '548', 'Vatu', ['VANUATU'])
 WST = add_currency('WST', '882', 'Tala', ['SAMOA'])
-XAF = add_currency('XAF', '950', 'CFA franc BEAC', ['CAMEROON', 'CENTRAL AFRICAN REPUBLIC', 'REPUBLIC OF THE CONGO', 'CHAD', 'EQUATORIAL GUINEA', 'GABON'])
+XAF = add_currency('XAF', '950', 'CFA franc BEAC', ['CAMEROON', 'CENTRAL AFRICAN REPUBLIC',
+                                                    'REPUBLIC OF THE CONGO', 'CHAD', 'EQUATORIAL GUINEA',
+                                                    'GABON'])
 XAG = add_currency('XAG', '961', 'Silver', [])
 XAU = add_currency('XAU', '959', 'Gold', [])
 XBA = add_currency('XBA', '955', 'Bond Markets Units European Composite Unit (EURCO)', [])
 XBB = add_currency('XBB', '956', 'European Monetary Unit (E.M.U.-6)', [])
 XBC = add_currency('XBC', '957', 'European Unit of Account 9(E.U.A.-9)', [])
 XBD = add_currency('XBD', '958', 'European Unit of Account 17(E.U.A.-17)', [])
-XCD = add_currency('XCD', '951', 'East Caribbean Dollar', ['ANGUILLA', 'ANTIGUA AND BARBUDA', 'DOMINICA', 'GRENADA', 'MONTSERRAT', 'SAINT KITTS AND NEVIS', 'SAINT LUCIA', 'SAINT VINCENT AND THE GRENADINES'])
+XCD = add_currency('XCD', '951', 'East Caribbean Dollar', ['ANGUILLA', 'ANTIGUA AND BARBUDA', 'DOMINICA',
+                                                           'GRENADA', 'MONTSERRAT', 'SAINT KITTS AND NEVIS',
+                                                           'SAINT LUCIA', 'SAINT VINCENT AND THE GRENADINES'])
 XDR = add_currency('XDR', '960', 'SDR', ['INTERNATIONAL MONETARY FUND (I.M.F)'])
 XFO = add_currency('XFO', 'Nil', 'Gold-Franc', [])
 XFU = add_currency('XFU', 'Nil', 'UIC-Franc', [])
-XOF = add_currency('XOF', '952', 'CFA Franc BCEAO', ['BENIN', 'BURKINA FASO', 'COTE D\'IVOIRE', 'GUINEA-BISSAU', 'MALI', 'NIGER', 'SENEGAL', 'TOGO'])
+XOF = add_currency('XOF', '952', 'CFA Franc BCEAO', ['BENIN', 'BURKINA FASO', 'COTE D\'IVOIRE',
+                                                     'GUINEA-BISSAU', 'MALI', 'NIGER', 'SENEGAL', 'TOGO'])
 XPD = add_currency('XPD', '964', 'Palladium', [])
 XPF = add_currency('XPF', '953', 'CFP Franc', ['FRENCH POLYNESIA', 'NEW CALEDONIA', 'WALLIS AND FUTUNA'])
 XPT = add_currency('XPT', '962', 'Platinum', [])
+XSU = add_currency('XSU', '994', 'Sucre', ['SISTEMA UNITARIO DE COMPENSACION REGIONAL DE PAGOS "SUCRE"'])
 XTS = add_currency('XTS', '963', 'Codes specifically reserved for testing purposes', [])
+XUA = add_currency('XUA', '965', 'ADB Unit of Account', ['MEMBER COUNTRIES OF THE AFRICAN DEVELOPMENT BANK GROUP'])
+XXX = add_currency(
+    'XXX',
+    '999',
+    'The codes assigned for transactions where no currency is involved',
+    ['ZZ07_No_Currency'],
+)
 YER = add_currency('YER', '886', 'Yemeni Rial', ['YEMEN'])
 ZAR = add_currency('ZAR', '710', 'Rand', ['SOUTH AFRICA'])
-ZMK = add_currency('ZMK', '894', 'Zambian Kwacha', ['ZAMBIA'])
+ZMK = add_currency('ZMK', '894', 'Zambian Kwacha', [])  # historical
+ZMW = add_currency('ZMW', '967', 'Zambian Kwacha', ['ZAMBIA'])
 ZWD = add_currency('ZWD', '716', 'Zimbabwe Dollar A/06', ['ZIMBABWE'])
 ZWL = add_currency('ZWL', '932', 'Zimbabwe dollar A/09', ['ZIMBABWE'])
 ZWN = add_currency('ZWN', '942', 'Zimbabwe dollar A/08', ['ZIMBABWE'])
